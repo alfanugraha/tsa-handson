@@ -1,0 +1,260 @@
+---
+title: "Outlier Analysis"
+output: 
+  html_notebook:
+    toc: yes
+    toc_depth: 3
+    toc_float: true
+    theme: flatly
+    highlight: zenburn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+## Load data
+
+Tahapan eksplorasi data
+
+```{r}
+cars
+```
+
+```{r}
+skimr::skim(cars)
+```
+
+```{r}
+cars_30 <- cars[1:30, ]
+cars_30
+```
+
+### Deteksi pencilan
+
+```{r}
+# menambahkan data pencilan
+cars_pencilan <- data.frame(
+  speed = c(24, 24, 25, 25, 25),
+  dist = c(81, 80, 86, 88, 85)
+)
+
+# menggabung data dengan data pencilan
+cars_35 <- rbind(cars_30, cars_pencilan)
+tail(cars_35, n=5)
+```
+
+```{r}
+par(mfrow=c(1, 2))
+
+# model regresi linear
+# y ~ bX
+lm_model1 <- lm(dist ~ speed, cars_30)
+
+# plot data awal
+plot(
+  cars_30$speed,
+  cars_30$dist,
+  main="Data amatan awal",
+  xlab="Kecepatan",
+  ylab="Jarak",
+  pch="*",
+  col="red",
+  cex=2
+)
+abline(
+  lm_model1, col="blue", lwd=3, lty=2
+)
+
+# model regresi linear
+# y ~ bX
+lm_model2 <- lm(dist ~ speed, cars_35)
+
+# plot data awal
+plot(
+  cars_35$speed,
+  cars_35$dist,
+  main="Data dengan pencilan",
+  xlab="Kecepatan",
+  ylab="Jarak",
+  pch="*",
+  col="red",
+  cex=2
+)
+abline(
+  lm_model2, col="blue", lwd=3, lty=2
+)
+```
+
+
+
+```{r}
+# ringkasan model dengan data amatan awal
+summary(lm_model1)
+summary(lm_model2)
+```
+
+```{r}
+influence.measures(lm_model2)
+```
+
+```{r}
+bpr <- read.csv(file="https://github.com/alfanugraha/tsa-handson/raw/master/eksplorasi01.csv", 
+                header = T, 
+                sep = ",")
+str(bpr)
+```
+
+```{r}
+summary(bpr)
+```
+
+```{r}
+par(mfrow=c(2, 4))
+for(i in 2:10) 
+  boxplot(bpr[,i], main=colnames(bpr)[i])
+```
+
+
+```{r}
+par(mfrow=c(1,3))
+boxplot(bpr$Non.Performing.Loan)
+hist(bpr$Non.Performing.Loan)
+qqnorm(bpr$Non.Performing.Loan, pch=1, frame=F)
+qqline(bpr$Non.Performing.Loan, col="steelblue", lwd=2)
+```
+
+## Fungsi winsorised
+
+Pendugaan ukuran penyebaran menggunakan fungsi winsorised
+
+```{r}
+# fungsi untuk menghasilkan nilai winsorised 
+winval <- function (x, tr = 0.2) 
+{
+    y <- sort(x)
+    n <- length(x)
+    ibot <- floor(tr * n) + 1
+    itop <- length(x) - ibot + 1
+    xbot <- y[ibot]
+    xtop <- y[itop]
+    winval <- ifelse(x <= xbot, xbot, x)
+    winval <- ifelse(winval >= xtop, xtop, winval)
+    winval
+}
+# winsorised mean
+winmean <- function (x, tr = 0.2) 
+{
+    winmean <- mean(winval(x, tr))
+    winmean
+}
+# winsorised variance
+winvar <- function (x, tr = 0.2) 
+{
+    winvar <- var(winval(x, tr))
+    winvar
+}
+# winsorised standard error
+winse <- function (x, tr = 0.2) 
+{
+  n = length(x)
+  h = n - 2 * floor(tr * n)
+  top = (n - 1) * sqrt(winvar(x, tr = tr))
+  bot = (h - 1) * sqrt(n)
+  se = top/bot
+  se
+}
+```
+
+
+```{r}
+x <- bpr$Non.Performing.Loan
+
+# ukuran pemusatan dengan fungsi umum
+mean(x)             # rataan sample  
+median(x)           # median sample
+mean(x, trim = .5)  # rataan terpangkas 50%
+mean(x, trim = .2)  # rataan terpangkas 20%
+mean(x, trim = .1)  # rataan terpangkas 10%
+
+# ukuran pemusatan dengan fungsi winsorised
+winmean(x)          # rataan terpangkas 20%
+winmean(x, tr = .1)          # rataan terpangkas 10%
+quantile(x)
+
+```
+
+```{r}
+winvar(x)
+winvar(x, tr=.1)
+IQR(x)
+mad(x)
+```
+
+```{r}
+trimse <- function (x, tr = 0.2) 
+{
+   trimse <- sqrt(winvar(x, tr))/((1 - 2 * tr) * sqrt(length(x)))
+   trimse
+}
+se.med <- sqrt((pi/2)*(mad(x)^2/length(x)))  # s.e  median
+```
+
+```{r}
+#SK 95% Mean
+t.test(x)$conf.int
+#SK 95% Trimmed Mean
+c(mean(x,trim=.2)-qnorm(0.975)*trimse(x),mean(x,trim=.2)+qnorm(0.975)*trimse(x))
+#SK 95% Median
+c(median(x)-qnorm(0.975)*se.med,median(x)+qnorm(0.975)*se.med)
+#SK 95% Winsorized Mean
+c(winmean(x)-qnorm(0.975)*winse(x),winmean(x)+qnorm(0.975)*winse(x))
+```
+
+```{r}
+library(MASS)
+huber(x)
+```
+
+```{r}
+data("phones")
+plot(year, calls)
+```
+
+```{r}
+fit.ols <- lm(calls ~ year)
+summary(fit.ols)
+```
+
+```{r}
+par(mfrow=c(1,4))
+plot(fit.ols, 1:2)
+plot(fit.ols, 4)
+hmat.p <- hat(model.matrix(fit.ols))
+h.phone <- hat(hmat.p)
+cook.d <- cooks.distance(fit.ols)
+plot(h.phone/(1-h.phone), cook.d,xlab="h/(1-h)", ylab="Cook distance")
+```
+
+## High Breakdown Regression 
+
+```{r}
+# least median of squares (LMS)
+fit.lms <- lqs(calls~year, method = "lms")
+fit.lms
+
+# least trimmed squares (LTS)
+fit.lts <- lqs(calls~year, method = "lts")
+fit.lts
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(fit.lms$fit, fit.lms$res, main="LMS")
+plot(fit.lts$fit, fit.lts$res, main="LMS")
+```
+
+
