@@ -1,0 +1,371 @@
+---
+title: "Transformasi Data"
+output: 
+  html_notebook:
+    toc: yes
+    toc_depth: 4
+    toc_float: true
+    theme: flatly
+    highlight: zenburn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rcompanion)
+library(MASS)
+```
+
+## Sebaran Peubah Acak
+
+### Pembangkitan bilangan acak
+
+Pembangkitan bilangan acak merupakan alat yang diperlukan dalam komputasi statistik, umumnya untuk simulasi. Bilangan acak yang dibangkitkan merupakan *pseudorandom* yang memenuhi sebaran statistik tertentu seperti fungsi massa peluang atau fungsi kepekatan peluang dan fungsi sebaran kumulatif.
+
+Semua metode pembangkitan bilangan acak tergantung dari pembangkitan bilangan acak seragam.
+
+Sebagai salah satu bahasa pemrograman yang hadir karena kebutuhan akan komputasi statistik, R telah menyiapkan banyak fungsi untuk membangkitkan data berdasarkan sebaran. Fungsi peluang suatu sebaran dalam R ditandai dengan prefix sebagai berikut:
+
+| Prefix|  Deskripsi               | 
+|:-----:|:-------------------------|
+| `r-`  | pembangkitan bilangan acak dari suatu sebaran |
+| `d-`  | pdf $f(x)$ / pmf $P(X=x)$ |
+| `p-`  | cdf $P(X \le x)$ |
+| `q-`  | fungsi quantile/invers cdf|
+
+
+### Fungsi Sebaran
+
+R dilengkapi dengan  sekumpulan fungsi untuk membangkitkan bilangan acak sebaran peluang yang umum digunakan seperti sebaran normal, poisson, binomial dan lain-lain. Beberapa contoh fungsi untuk membangkitkan data yang berasal dari sebaran tertentu antara lain [(Peng 2020)](https://bookdown.org/rdpeng/rprogdatascience/):
+
+| Distribution   | R name    | Arguments           |
+|----------------|-----------|---------------------|
+| beta           | `beta`    | shape1, shape2, ncp |
+| binomial       | `binom`   | size, prob          |
+| Chauchy        | `cauchy`  | location, scale     |
+| chi-squared    | `chisq`   | df, ncp             |
+| exponential    | `exp`     | rate                |
+| F              | `f`       | df1, df2, ncp       |
+| gamma          | `gamma`   | shape, scale        |
+| geometric      | `geom`    | prob                |
+| hypergeometric | `hyper`   | m, n, k             |
+| log-normal     | `lnorm`   | meanlog, sdlog      |
+| uniform        | `unif`    | min, max            |
+| neg binomial   | `nbinom`  | size, prob          |
+| normal         | `norm`    | mean, sd            |
+| Poisson        | `pois`    | lambda              |
+| Student’s t    | `t`       | df, ncp             |
+
+#### Fungsi sebaran peluang diskret
+
+| Fungsi|  Deskripsi               | 
+|:-----|:-------------------------|
+| `-binom`  | sebaran binomial $Bi(n, \lambda)$ |
+| `-hyper`  | sebaran hipergeometrik $H(N, m, n)$ |
+| `-nbinom`  | sebaran binomial negatif $NB(k, pi)$ |
+| `-pois`  | sebaran Poisson $Po(\lambda, t)$|
+
+#### Fungsi sebaran peluang kontinu
+
+| Fungsi|  Deskripsi               | 
+|:-----|:-------------------------|
+| `-unif`  | sebaran seragam $U(a, b)$ |
+| `-exp`  | sebaran eksponensial $Exp(\lambda)$ |
+| `-norm`  | sebaran normal $N(\pi, \sigma)$ |
+
+
+## Transformasi Data
+
+Banyak metode statistika yang mensyaratkan bahwa peubah numerik yang digunakan harus mengikuti sebaran normal. Contohnya: uji-T pada Uji signifikansi parameter model regresi atau uji-F pada ANOVA
+
+Asumsi bahwa data berdistribusi normal dengan ragam yang homogen harus selalu diperiksa, Jika asumsi terpenuhi maka kita dapat menganalisis data tersebut dengan analisis statistika parametrik. Namun jika tidak, maka perlu dilakukan penanganan terhadap data tersebut.
+
+Transformasi data dapat **memperbaiki** penyimpangan dari normalitas dan keragaman yang tidak homogen (heteroskedastisitas). Transformasi yang tepat memungkinkan kita menggunakan analisis statistika parametrik.
+
+## Asumsi 1: Normalitas
+
+### Membangkitkan data
+
+Membangkitkan data simulasi yang menyebar secara simetris (Normal)
+
+```{r}
+# data menyebar normal
+x <- rnorm(1000, 5, 1)
+hist(x)
+```
+
+Dapat dilihat bahwa sebaran data simulasi yang kita bangkitkan berdasarkan QQPlot sudah sesuai karena secara umum setiap amatan berada pada garis Normal
+
+```{r}
+#data menyebar normal
+qqnorm(x)
+qqline(x,col=2)
+```
+
+Perhatikan pada data menyebar normal, nilai mean dan median cenderung mirip
+
+```{r}
+summary(x)
+```
+
+
+### Uji kenormalan Shapiro-Wilk
+
+```{r}
+shapiro.test(x)
+```
+
+*Hipotesis:*
+
+* $H_0$: data menyebar normal
+* $H_1$: data tidak menyebar normal
+
+Karena `p-value` = 0.7389 > taraf nyata 0.05, maka dapat disimpulkan bahwa *data menyebar normal*, pada uji dengan taraf 5%.
+
+Berikutnya, dibangkitkan suatu data menggunakan sebaran chi-square untuk dilakukan uji kenormalan.
+
+```{r}
+#data tidak menyebar normal
+chi <- rchisq(100, 2, 0)
+
+# tahapan 1: histogram
+hist(chi)
+
+# tahapan 2: qqplot
+qqnorm(chi)
+qqline(chi, col="red")
+
+# tahapan 3: Uji kenormalan Shapiro-Wilk
+shapiro.test(chi)
+```
+
+
+Karena `p-value` = 4.376e-09 < taraf nyata 0.05, maka dapat disimpulkan bahwa *data tidak menyebar normal*, pada uji dengan taraf 5%.
+
+Bagaimana jika sebaran tersebut ditransformasi $x = x^{1/3}$. Proses ini mungkin memerlukan percobaan untuk mendapatkan hasil yang sesuai.
+
+```{r}
+chi.trans<-chi^(1/3)
+hist(chi.trans)
+qqnorm(chi.trans)
+qqline(chi.trans, col="red")
+shapiro.test(chi.trans)
+```
+
+
+## Asumsi 2: Heteroskedastisitas
+
+Asumsi lainnya yang penting adalah ragam Homogen. Kehomogenan ragam dapat kita lihat melalui plot residual/sisaan. Jika ragam homogen, maka pada plot residual, sisaan akan bersifat acak dengan memusat di sekitar nilai 0 dengan simpangan baku tertentu dan tidak terdapat pola-pola hubungan tertentu (misal pola berbentuk corong). Jika ingin menggunakan ukuran tertentu, adpat pula dilakukan uji seperti Uji Breusch-Pagan (BP), white atau Uji Glejser.
+
+### Ilustrasi
+
+```{r}
+set.seed(7)
+x <- rep(seq(1, 5, ), each=10)
+e <- c()
+for (i in 1:5) {
+	e0 <- rnorm(10, 0, 0.5*i)
+	e <- c(e, e0) 
+}
+
+y <- 15 + (4*x)+e
+
+mod <- lm(y~x)
+res <- residuals(mod)
+fits <- fitted(mod)
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(fits, res)
+plot(x, y)
+```
+
+Pola sisaan memperlihatkan adanya ketidakhomogenan ragam.
+
+## Power Transform
+
+Dengan teknik *power transforms*, transformasi peubah `x` dan `y` dengan *monotonic with inflection point* lalu periksa kembali pola sisaan.
+
+$X = X^{-1} = 1/X$
+
+```{r}
+xt <- 1/x
+yt <- y/x
+
+modt <- lm(yt~xt)
+rest <- residuals(modt)
+fitst <- fitted(modt)
+
+plot(fitst,rest)
+plot(xt,yt)
+```
+
+
+### Ilustrasi 
+
+```{r}
+ilustrasi <- read.csv('https://github.com/alfanugraha/tsa-handson/raw/master/turbidity.csv', header=T, sep=',')
+Turbidity <- ilustrasi$Turbidity
+
+plotNormalHistogram(Turbidity)
+```
+
+```{r}
+qqnorm(Turbidity, ylab="Sample Quantiles for Turbidity")
+qqline(Turbidity, col="red")
+```
+
+## Transformasi dengan Metode Tukey
+
+Perintah `transformTukey` dari *package* `rcompanion` dapat digunakan untuk melakukan transformasi tukey. pada package ini, nilai lambda ditentukan batas bawah dan atas. Fungsi akan melakukan proses pencarian secara iteratif untuk memperoleh nilai terbaik dalam proses transformasi.
+
+```{r}
+Transf_tukey <- transformTukey(Turbidity, plotit = F)
+
+```
+
+
+```{r}
+plotNormalHistogram(Transf_tukey)
+```
+
+## Transformasi Box-Cox
+
+```{r}
+# transfomasi boxcox pada data turbidity
+# dengan rentang nilai lambda = [-6, -5.9, ..., 5.9, 6]  
+Trans_box <- boxcox(
+  Turbidity ~ 1,
+  lambda = seq(-6, 6, 0.1)
+)
+Trans_box
+```
+
+```{r}
+# buat data frame dari hasil Trans_box
+cox <- data.frame(Trans_box$x, Trans_box$y)
+cox
+```
+
+```{r}
+# urutkan data frame tersebut secara menurun pada kolom y
+cox2 <- cox[with(cox, order(-cox$Trans_box.y)),]
+cox2
+```
+
+Dapat dilihat bahwa lambda yang memiliki nilai log-likelihood paling tinggi adalah -0.2.
+
+```{r}
+lambda <- cox2[1, "Trans_box.x"]
+Trans_box_with_lambda <- (Turbidity ^ lambda - 1) / lambda
+plotNormalHistogram(Trans_box_with_lambda)
+```
+
+
+### Ilustrasi 
+
+```{r}
+boxplot(
+  Turbidity ~ Location, 
+  data = ilustrasi, 
+  ylab="Turbidity", 
+  xlab = "Location"
+)
+```
+
+```{r}
+# memeriksa pola sisaan ragam dengan ANOVA
+model_turbidity <- lm(Turbidity ~ Location, ilustrasi)
+car::Anova(model_turbidity, type="II")
+```
+
+```{r}
+z <- residuals(model_turbidity)
+plotNormalHistogram(z)
+```
+
+```{r}
+qqnorm(z)
+qqline(z)
+```
+
+```{r}
+# ekstrak nilai transformasi baru dari metode Tukey
+ilustrasi$Turbidity_tukey <- transformTukey(ilustrasi$Turbidity, plotit = T)
+```
+
+```{r}
+# simpan hasil transformasi boxcox ke dalam df ilustrasi
+ilustrasi$Turbidity_boxcox <- Trans_box_with_lambda
+```
+
+
+```{r}
+# lakukan uji kenormalan setelah transformasi
+model_turbidity_box <- lm(Turbidity_boxcox ~ Location, ilustrasi)
+car::Anova(model_turbidity_box, type="II")
+```
+
+
+```{r}
+# histogram hasil transformasi boxcox
+zt <- residuals(model_turbidity_box)
+plotNormalHistogram(zt)
+```
+
+```{r}
+# qqplot hasil transformasi boxcox
+qqnorm(zt)
+qqline(zt)
+```
+
+## Ilustrasi dengan dataset `cars`
+
+```{r}
+car::scatterplot(cars$speed, cars$dist)
+```
+
+```{r}
+mdl <- lm(dist~speed, data=cars)
+summary(mdl)
+```
+
+```{r}
+sisaan <- residuals(mdl) 
+qqnorm(sisaan)
+qqline(sisaan, col=2)
+
+plot(fitted(mdl), sisaan)
+```
+
+```{r}
+boxcox(mdl, lambda=seq(0,1,by=.1))
+```
+
+```{r}
+hist(cars$dist)
+```
+
+
+```{r}
+# Pemodelan regresi linear dengan transformasi Box-Cox
+cars$dist.box<-cars$dist^0.4
+hist(cars$dist.box)
+```
+
+```{r}
+model.box<-lm(dist.box~speed,data=cars)
+summary(model.box)
+```
+
+
+```{r}
+qqnorm(residuals(model.box))
+qqline(residuals(model.box),col=2)
+
+plot(fitted(model.box),residuals(model.box))
+```
+
+Apakah transformasi memperbaiki pemodelan regresi?
+
