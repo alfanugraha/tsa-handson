@@ -1,0 +1,343 @@
+---
+title: "Regresi Linier"
+output: 
+  html_notebook:
+    toc: yes
+    toc_depth: 4
+    toc_float: true
+    theme: flatly
+    highlight: zenburn
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+library(lmtest)
+library(car)
+library(MASS)
+library(dplyr)
+library(ggplot2)
+# library(tidyverse)
+```
+
+
+## Persiapan Data
+
+DBR atau Debt Burden Ratio merupakan perbandingan antara cicilan utang dengan pendapatan bersih per bulan
+
+### Struktur dan ringkasan data
+
+```{r}
+datamodul4 <- read.csv(file="https://github.com/alfanugraha/tsa-handson/raw/master/datalatih4.csv", 
+                header = T, 
+                sep = ",")
+str(datamodul4)
+```
+
+```{r}
+head(datamodul4)
+```
+
+```{r}
+skimr::skim(datamodul4)
+```
+
+Karena terdapat peubah kategorik yang terbaca sebagai numerik, maka dilakukan konversi terlebih dahulu
+
+```{r}
+datamodul4$PENDIDIKAN_KODE <- as.factor(datamodul4$PENDIDIKAN_KODE)
+```
+
+Melihat statistik deskriptif dari data
+
+```{r}
+summary(datamodul4)
+```
+
+### Korelasi antar peubah
+
+Untuk melihat korelasi antara 2 peubah dapat menggunakan fungsi `cor` Jika ingin menghitung korelasi Spearman khususnya pada data rank, maka dapat mengatur argumen untuk parameter `method` dengan nilai `"spearman"`.
+
+```{r}
+cat("*************** KORELASI ***************\n\n")
+
+cat(" Penghasilan & Limit Kredit -->", 
+    round(cor(datamodul4$PENGHASILAN, datamodul4$LIMIT_KREDIT), 3), "\n",
+    "Penghasilan & Lama Bekerja -->",
+    round(cor(datamodul4$PENGHASILAN, datamodul4$LAMA_BEKERJA), 3), "\n",
+    "Waktu kredit & Limit Kredit -->", 
+    round(cor(datamodul4$WAKTU_KREDIT, datamodul4$LIMIT_KREDIT), 3), "\n",
+    "Pendidikan & Penghasilan -->", 
+    round(cor(as.integer(datamodul4$PENDIDIKAN_KODE), datamodul4$PENGHASILAN, method ="spearman"), 3), "\n",
+    "Pendidikan & Limit Kredit -->", 
+    round(cor(as.integer(datamodul4$PENDIDIKAN_KODE), datamodul4$LIMIT_KREDIT, method ="spearman"), 3),"\n",
+    "Usia & Lama Bekerja -->",
+    round(cor(datamodul4$USIA, datamodul4$LAMA_BEKERJA), 3), "\n",
+
+"\n****************************************\n")
+```
+
+
+```{r}
+datamodul4 %>% select_if(is.numeric) %>% pairs()
+```
+
+Membuat matriks korelasi untuk setiap peubah numerik
+
+```{r}
+corr_matx <- datamodul4 %>% select_if(is.numeric) %>% cor() %>% round(3)
+corr_matx
+```
+
+Menampilkan nilai korelasi dalam bentuk grafis menggunakan `corrplot`
+
+```{r}
+corrplot(corr_matx, 
+         method = "color", 
+         type = "lower", 
+         tl.cex = 0.5, 
+         tl.col = "black",
+         addCoef.col = "#2F2F2F",
+         addCoefasPercent = FALSE,
+         number.cex = 0.5,
+         diag=F)
+```
+
+## Regresi Linier Sederhana
+
+Model regresi linear sederhana yaitu model regresi dimana terdapat 1 peubah respon dengan hanya 1 peubah penjelas. Contohnya, model untuk menghitung LIMIT KREDIT, sebagai peubah respon (Y), berdasarkan informasi mengenai PENGHASILAN, sebagai peubah penjelas (X)
+
+```{r}
+data_reg1 <- datamodul4[c("LIMIT_KREDIT", "PENGHASILAN")]
+```
+
+### Membangun model regresi linier sederhana
+
+```{r}
+reg1 <- lm(LIMIT_KREDIT ~ PENGHASILAN, data = data_reg1)
+
+summary(reg1)
+```
+
+Berdasarkan summary model, dapat diketahui bahwa peubah PENGHASILAN memiliki pengaruh yang signifikan di dalam model (`p-value` sangat kecil `***`). Namun, jika dilihat dari nilai $R^2$ , sepertinya performa model belum cukup baik dimana Peubah PENGHASILAN hanya mampu menjelaskan sekitar 39% keragaman dari peubah respon.
+
+Pak MADE: R2 besarnya keragaman Y yang bisa dijelaskan oleh X itu sekitar 80%. Makin besar makin bagus. 
+asumsi kenormalan, kebebasan, ragam konstan/homogen (lebar sama sebesar sigma2)
+
+### Plot garis regresi
+
+
+```{r}
+# Membuat scatter plot
+scatter_plot <- ggplot(data = data_reg1, aes(x = PENGHASILAN, y = LIMIT_KREDIT)) +
+  # Menambahkan titik-titik scatter plot
+  geom_point(color="darkred", size=4, alpha=0.3) +
+  # Menambahkan garis regresi
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = T, # Menambahkan C.I
+              color = "blue")
+
+# Menampilkan scatter plot
+scatter_plot
+```
+
+Jika melihat plot pencaran, tidak tergambarkan secara jelas hubungan antara peubah PENGHASILAN dan LIMIT_KREDIT. Sebagian besar data menumpuk pada nilai-nilai kecil, namun ada data-data lainnya yang menyebar pada rentang nilai yang sangat besar. Hal ini mengindikasikan juga bahwa terdapat kemenjuluran yang besar pada kedua peubah serta kemungkinan besar asumsi-asumsi model linear tidak terpenuhi.
+
+### Normal Q-Q Plot
+
+Dari Normal Q-Q Plot maupun uji formal menggunakan Shapiro-Wilk maka dapat disimpulkan dengan sangat jelas bahwa residual model tidak menyebar normal.
+
+Asumsi normalitas pada model regresi linier: residual menyebar $Normal(0, \sigma^2)$
+
+```{r}
+# Menghitung nilai residual dari model reg1
+res <- residuals(reg1)
+
+# Membuat Kurva Normal QQ Plot
+qqnorm(res)
+qqline(res, col="red")
+
+# Mengecek apakah residual menyebar Normal
+shapiro.test(res)
+```
+
+
+### Shapiro-Wilk test
+
+Menguji apakah sisaan (residual) menyebar normal
+
+```{r}
+shapiro.test(res)
+```
+
+### Plot sisaan
+
+```{r}
+fits <- fitted(reg1)
+plot(fits, res, col="orange", cex=1.5, lwd=2)
+abline(h=0, col="red", lty=5)
+```
+
+* nilai sisaan tidak menyebar secara acak
+* membentuk pola seperti corong mengindikasikan bahwa semakin besar nilai Y maka sisaannya semakin besar
+
+### Uji Homogenitas
+
+```{r}
+library(car)
+ncvTest(reg1)
+```
+
+### Uji autokorelasi 
+
+Uji Durbin-Watson
+
+```{r}
+library(lmtest)
+dwtest(reg1)
+```
+
+
+## Model regresi linier dengan transformasi (LOG) 
+
+```{r}
+data_reg2 <- log(data_reg1)
+data_reg2
+```
+
+```{r}
+# Y ~ X1 + X2 + X3
+reg2 <- lm(LIMIT_KREDIT ~ PENGHASILAN, data_reg2)
+summary(reg2)
+```
+
+QQ Plot
+
+```{r}
+ggplot(data=data_reg2, aes(x=PENGHASILAN, y=LIMIT_KREDIT)) +
+  # menambahkan titik amatan
+  geom_point(color="darkred", size=4, alpha=0.3) +
+  # menambahkan garis regresi
+  geom_smooth(method = "lm",
+              formula = y ~ x,
+              se = T, # menambahkan selang kepercayaan
+              color = "blue")
+```
+
+
+```{r}
+# mengambil sisaan dari model reglin
+res2 <- residuals(reg2)
+
+# membuat kurva normal Q-Q plot
+qqnorm(res2)
+qqline(res2, col="red")
+```
+
+```{r}
+shapiro.test(res2)
+```
+
+```{r}
+# plot sisaan
+fits2 <- fitted(reg2)
+plot(fits2, res2, col="orange", cex=1.5, lwd=2)
+abline(h=0, col="red", lty=5)
+```
+
+## Prediksi
+
+Tujuan lain dari membangun suatu model untuk melakukan prediksi
+
+```{r}
+# contoh terdapat dua orang baru sebagai amatan dengan penghasilan berbeda
+income <- data.frame("PENGHASILAN"=c(15000000, 9000000))
+
+# prediksi pada model regresi linier tanpa transformasi
+pred_reg1 <- predict(reg1, income)
+t(pred_reg1)
+```
+
+```{r}
+# prediksi pada model regresi linier dengan transformasi
+pred_reg2 <- predict(reg2, income)
+t(pred_reg2)
+```
+
+## Regresi linear berganda 
+
+* Hasil sebelumnya $R^2$ tidak begitu tinggi
+* Indikasinya perlu tambahan peubah penjelas lain agar dapat menjelaskan keragaman peubah Y dengan lebih baik
+
+```{r}
+nama_col <- c("LIMIT_KREDIT", "PENGHASILAN", "PEKERJAAN", "LAMA_BEKERJA", "STATUS_TT",
+             "USIA", "STATUS_NIKAH", "JML_TANGGUNGAN", "WAKTU_KREDIT")
+data_mul1 <- datamodul4[nama_col]
+head(data_mul1)
+```
+
+```{r}
+reg_mul1 <- lm(LIMIT_KREDIT ~ ., data_mul1)
+summary(reg_mul1)
+```
+
+## Multikolinearitas
+
+Untuk memeriksa ada tidaknya kondisi multikolinearitas pada peubah penjelas.
+
+```{r}
+car::vif(reg_mul1)
+```
+
+```{r}
+plot(reg_mul1)
+```
+
+```{r}
+reg_stepwise <- MASS::stepAIC(reg_mul1, direction = "both")
+```
+
+
+```{r}
+summary(reg_stepwise)
+```
+
+```{r}
+reg_mul2 <- lm(log(LIMIT_KREDIT) ~ ., data_mul1)
+summary(reg_mul2)
+```
+
+```{r}
+data.baru <- data.frame(
+  PENGHASILAN = c(9000000, 15000000),
+  PEKERJAAN = c("Pegawai swasta", "Pegawai BUMN"),
+  LAMA_BEKERJA = c(14, 6),
+  STATUS_TT = c("Milik Sendiri", "Milik Sendiri"),
+  USIA = c(36, 25),
+  STATUS_NIKAH = c("MENIKAH", "TIDAK MENIKAH"),
+  JML_TANGGUNGAN = c(3, 0),
+  WAKTU_KREDIT = c(48, 36)   # dalam bulan
+)
+
+pred_limitkredit1 <- predict(reg_mul1, data.baru)
+pred_limitkredit2 <- predict(reg_mul2, data.baru)
+```
+
+```{r}
+# linier berganda dengan stepwise
+t(pred_limitkredit1)
+```
+
+* orang-1 diberikan kredit 80juta, orang-2 125juta
+
+```{r}
+# linier berganda dengan transformasi
+t(exp(pred_limitkredit2))
+```
+
+* orang-1 diberikan kredit 48juta, orang-2 69juta
+
+
+
+
