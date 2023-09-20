@@ -1,4 +1,4 @@
-Creditability,Account Balance,Duration of Credit (month),Payment Status of Previous Credit,Purpose,Credit Amount,Value Savings/Stocks,Length of current employment,Instalment per cent,Sex & Marital Status,Guarantors,Duration in Current address,Most valuable available asset,Age (years),Concurrent Credits,Type of apartment,No of Credits at this Bank,Occupation,No of dependents,Telephone,Foreign Worker
+creditability,account_balance,duration,payment_status,purpose,credit_amount,stocks,length_employment,instalment_percent,sex_marital_status,guarantors,duration_currentaddress,most_available_asset,age,concurrent_credits,type_apartment,no_credits,cccupation,no_dependents,telephone,foreign_worker
 1,1,18,4,2,1049,1,2,4,2,1,4,2,21,3,1,1,3,1,1,1
 1,1,9,4,0,2799,1,3,2,3,1,2,1,36,3,1,2,3,2,1,1
 1,2,12,2,9,841,2,4,2,2,1,4,1,23,3,1,1,2,1,1,1
